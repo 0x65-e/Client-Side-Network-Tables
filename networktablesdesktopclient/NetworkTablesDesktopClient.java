@@ -15,10 +15,10 @@ public class NetworkTablesDesktopClient {
 
   public void run() {
 	  
-	  SerialPort serial = null;
+	SerialPort serial = null;
 	  
 	try {
-		serial = setup("COM3"); // Sets up the serial port with the arduino
+		serial = setup(); // Sets up the serial port with the arduino, should just be first available
 	} catch (IOException e) {
 		System.out.println("IO exception on serial open");
 		e.printStackTrace();
@@ -32,6 +32,7 @@ public class NetworkTablesDesktopClient {
     
     NetworkTableEntry xEntry = table.getEntry("x");
     NetworkTableEntry yEntry = table.getEntry("y");
+    NetworkTableEntry driverControl = table.getEntry("driverControl");
     
     inst.startClientTeam(294);
     inst.startDSClient();  // recommended if running on DS computer; this gets the robot IP from the DS
@@ -42,13 +43,15 @@ public class NetworkTablesDesktopClient {
     yEntry.addListener(event -> {System.out.println("Y changed value: " + event.value.getValue()); }, EntryListenerFlags.kNew | EntryListenerFlags.kUpdate);
     
     // Listener for an entire table
-    table.addEntryListener((tbl, key, entry, value, flags) -> {System.out.println("Key: " + key + " Value: " + value.getValue() + " Flags: " + flags);
-    }, EntryListenerFlags.kNew | EntryListenerFlags.kUpdate);
+    //table.addEntryListener((tbl, key, entry, value, flags) -> {System.out.println("Key: " + key + " Value: " + value.getValue() + " Flags: " + flags);
+    //}, EntryListenerFlags.kNew | EntryListenerFlags.kUpdate);
+    
+    int i = 0;
     
     while (true) {
     	
       try {
-        Thread.sleep(1000);	// Updates every second
+        Thread.sleep(100);	// Updates every 100 millisecond
       } catch (InterruptedException ex) {
         System.out.println("interrupted");
         return;
@@ -56,20 +59,24 @@ public class NetworkTablesDesktopClient {
       
       double x = xEntry.getDouble(0.0);
       double y = yEntry.getDouble(0.0);
+      boolean driver = driverControl.getBoolean(true);
+      
+      double upscale = x * 10;
       
       
       // Write the x value to the serial port
       try {
-		write(serial, (byte)x);
-	} catch (IOException e) {
+		write(serial, (byte)((driver) ? 1 : 0)); // Write a 1 if the robot is being driven by humans, 0 if by vision
+      } catch (IOException e) {
 		System.out.println("IO exception on write");
 		e.printStackTrace();
-	} catch (InterruptedException e) {
+      } catch (InterruptedException e) {
 		System.out.println("Write operation interrupted");
 		e.printStackTrace();
-	}
+      }
       
       System.out.println("X: " + x + " Y: " + y);
+      i++;
     }
   }
   
@@ -82,6 +89,23 @@ public class NetworkTablesDesktopClient {
    */
   public SerialPort setup(String commPort) throws IOException, InterruptedException {
 	  SerialPort serial = SerialPort.getCommPort(commPort); // Need to update according to testing to what the COM port is
+	  serial.setComPortParameters(9600, 8, 1, 0); // These should be arduino default parameters
+	  serial.setComPortTimeouts(SerialPort.TIMEOUT_WRITE_BLOCKING, 0, 0); // block until bytes can be written
+	  
+	  if (serial.openPort()) System.out.println("Port open");
+	  else System.out.println("Failed to open port");
+	  
+	  return serial;
+  }
+  
+  /**
+   * Sets up the first serial port available
+   * @return The opened serial port
+   * @throws IOException
+   * @throws InterruptedException
+   */
+  public SerialPort setup() throws IOException, InterruptedException {
+	  SerialPort serial = SerialPort.getCommPorts()[0]; // Need to update according to testing to what the COM port is
 	  serial.setComPortParameters(9600, 8, 1, 0); // These should be arduino default parameters
 	  serial.setComPortTimeouts(SerialPort.TIMEOUT_WRITE_BLOCKING, 0, 0); // block until bytes can be written
 	  
